@@ -76,7 +76,57 @@ In this section, we will do some data wrangling.
 5.  Auto print your final wrangled tibble data frame.
 
 ```{r}
-# Add your solution here
+## Step 1: Organizing Data
+# Load necessary libraries
+library(stringr)
+library(lubridate)
+library(dplyr)
+
+# Step 2: Define the regular expression in order to detect "(Country) [number]"
+
+pattern <- "\\s*\\([A-Z]{2}\\)\\s*\\[\\d+\\]"
+
+# Step 3: Clean the released column using the regular expression created in step 1
+
+sales <- sales %>%
+  mutate(cleaned_released = str_remove(released, pattern))
+
+# Step 4: Convert the cleaned string column into a date class 
+sales <- sales %>%
+  mutate(released_date = mdy(cleaned_released))  # Use mdy() since the format is "month day, year"
+
+# Step 5: View the Results
+print(sales)
+```
+```{r}
+library(forcats)
+
+# Step 6: Create a factor for country
+sales <- sales %>%
+  mutate(country = factor(country))
+
+#Step 7: Collapse Levels into defined categories
+sales <- sales %>%
+  mutate(country = fct_collapse(country,
+    US = "US",
+    UK = "UK",
+    World = c("World", "WW"), 
+    Other = c("AUS", "JPN", "CAN", "FRA", "FR")))
+
+glimpse(sales)
+    
+```
+```{r}
+# Step 8: Transform sales column into a unit that stores album sales in millions of dollars
+
+sales <- sales %>%
+  mutate(sales_in_millions = sales / 1e6)  # Divide by a million
+
+filtered_sales <- sales %>%
+  filter(country %in% c("US", "UK", "World"))
+
+# Step 9: Auto print as a tibble data frame
+print(as_tibble(filtered_sales))
 ```
 
 ## Part 1B
@@ -88,7 +138,40 @@ In this section, we will do some more data wrangling followed by summarization u
 3.  Calculate the most recent, oldest, and the median years since albums were released for both Beyoncé and Taylor Swift.
 
 ```{r}
-# Add your solution here
+# Step 1: Filter from to only keep US Album sales
+US_sales <- sales %>%
+  filter(country %in% c("US"))
+
+# Check that filtering was successful
+print(as_tibble(US_sales))
+```
+```{r}
+# Create a new column called years_since_release
+
+# Step 1: Determine today's date
+current_date <- today()
+
+# Step 2: Create a new column for years since release
+US_sales <- US_sales %>%
+  mutate(years_since_release = floor(as.numeric(interval(released_date, current_date) / years(1))))
+
+# Check updated dataset
+glimpse(US_sales)
+```
+```{r}
+# Calculate Summary Statistics
+album_stats <- US_sales %>%
+  group_by(artist) %>%
+  summarize(
+    most_recent = max(years_since_release, na.rm = TRUE),
+    oldest = min(years_since_release, na.rm = TRUE),
+    median_years = median(years_since_release, na.rm = TRUE),
+    album_title_most_recent = title[which.max(years_since_release)],  # Title of the most recent album
+    album_title_oldest = title[which.min(years_since_release)]  # Title of the oldest album
+  )
+
+# Print Results
+print(album_stats)
 ```
 
 ## Part 1C
@@ -100,7 +183,36 @@ Using the wrangled data from Part 1A:
 2.  Using the total album sales, create a [percent stacked barchart](https://r-graph-gallery.com/48-grouped-barplot-with-ggplot2) using `ggplot2` of the percentage of sales of studio albums (in millions) along the y-axis for the two artists along the x-axis colored by the `country`.
 
 ```{r}
-# Add your solution here
+# Step 1: Calculate the total 
+
+total_sales <- filtered_sales %>%
+  group_by(artist, country) %>%
+  summarise(total_sales = sum(sales_in_millions))
+  
+print(total_sales)
+```
+```{r}
+# Creating a percent stacked bar chart in ggplot2
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+
+# Step 1: Calculate percentage of sales for each country for each artist
+total_sales <- total_sales %>%
+  group_by(artist) %>%
+  mutate(percentage = total_sales/ sum(total_sales) * 100)
+
+# Step 2: Create a percent stacked bar chart using ggplot2
+ggplot(total_sales, aes(x = artist, y = percentage, fill = country)) +
+  geom_bar(stat = "identity", position = "fill") + # "fill" for percent stacked bar
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) + # Format y-axis as percentages
+  labs(
+    title = "Percentage of Album Sales by Country",
+    x = "Artist",
+    y = "Percentage of Total Sales (in millions)",
+    fill = "country"
+  ) +
+  theme_minimal()
 ```
 
 ## Part 1D
@@ -115,7 +227,32 @@ Using the wrangled data from Part 1A, use `ggplot2` to create a bar plot for the
 -   The bars should be ordered from albums with the most sales (top) to the least sales (bottom) (**Note**: you must use functions from `forcats` for this step).
 
 ```{r}
-# Add your solution here
+# Step 1: Filter data to only include world sales
+
+world_sales <- filtered_sales %>%
+  filter(country=="World") %>%
+  group_by(title, artist) %>%
+  summarise(total_sales = sum(sales_in_millions, na.rm = TRUE)) %>%
+  ungroup()
+  
+print(world_sales)
+
+# Step 2: Reorder album sales by total sales in descending order
+world_sales <- world_sales %>%
+  mutate(title = fct_reorder(title, total_sales))
+
+# Step 3: Create the bar plot
+
+ggplot(world_sales, aes(x = total_sales, y = title, fill = artist)) +
+  geom_bar(stat = "identity") +
+  labs(
+    title = "Global Sales of Studio Albums (in Millions)",
+    x = "Sales ( in Millions)",
+    y = "Album Title",
+    fill = "Artist"
+  ) +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 10))  # Adjust text size for readability
 ```
 
 ## Part 1E
@@ -128,7 +265,20 @@ Using the wrangled data from Part 1A, use `ggplot2` to create a scatter plot of 
 -   There should be three scatter plots (one for UK, US and world sales) faceted by rows.
 
 ```{r}
-# Add your solution here
+# Create Scatter Plot
+
+ggplot(filtered_sales, aes(x = released_date, y = sales_in_millions, color = artist)) +
+  geom_point(size = 3) +  # Scatter plot points with size adjustment
+  geom_line(size = 1) +   # Add lines connecting the points for each artist
+  facet_wrap(~ country, nrow = 3) +  # Facet by Country into three rows
+  labs(
+    title = "Sales of Studio Albums by Release Date",
+    x = "Release Date",
+    y = "Sales (in Millions)",
+    color = "Artist"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
 ```
 
 # Part 2: Exploring sentiment of lyrics
