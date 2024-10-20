@@ -293,17 +293,73 @@ Using `ts_lyrics`, create a new column called `line` with one line containing th
 -   How many lines in Taylor Swift's lyrics contain the word "goodbye"? For full credit, show all the rows in `ts_lyrics` that have "goodbye" in the `line` column and report how many rows there are in total.
 
 ```{r}
-# Add your solution here
-```
+# Counting the number of times "hello" appears in Taylor Swift Songs
+# Load necessary Libraries
 
+library(dplyr)
+library(tidyr)
+install.packages("tidytext")
+library(tidytext)
+
+# Step 1: Create a new column 'line' for each line of lyrics
+ts_lines <- ts_lyrics %>%
+  unnest_tokens(line, Lyrics, token = "lines")
+
+# Step 2: Filter for lines containing "hello
+hello_lines <- ts_lines %>%
+  filter(grepl("hello", line, ignore.case = TRUE)) # Remove case-sensitivity
+
+# Step 3: Display all rows containing hello and count total number of lines with hello
+print(hello_lines)  # Display the rows
+n_hello_lines <- nrow(hello_lines)  # Count of lines with "hello"
+cat("Number of lines containing 'hello':", n_hello_lines, "\n")
+```
+In total there are 6 lines that contain the word "Hello" in Taylor Swifts Songs
+
+```{r}
+# Counting the number of times "goodbye" appears in Taylor Swift Songs
+# Filter for lines containing "goodbye"
+goodbye_lines <- ts_lines %>%
+  filter(grepl("goodbye", line, ignore.case = TRUE))  # Case-insensitive match
+
+# Show all rows containing "goodbye" and count
+print(goodbye_lines)  # Display the rows
+n_goodbye_lines <- nrow(goodbye_lines)  # Count of lines with "goodbye"
+cat("Number of lines containing 'goodbye':", n_goodbye_lines, "\n")
+```
+In Total there are 12 lines that contain "Goodbye" in Taylor Swift's Songs
 ## Part 2B
 
 Repeat the same analysis for `b_lyrics` as described in Part 2A.
 
 ```{r}
-# Add your solution here
-```
+# Counting the number of times "hello" appears in Beyonce Songs
+# The Beyonce lyrics file is already separated into lines so there is no need to separate out the lines
 
+# Step 1: Filter for lines containing "hello
+hello_lines2 <- b_lyrics %>%
+  filter(grepl("hello", line, ignore.case = TRUE)) # Remove case-sensitivity
+
+# Step 2: Display all rows containing hello and count total number of lines with hello
+print(hello_lines2)  # Display the rows
+n_hello_lines2 <- nrow(hello_lines2)  # Count of lines with "hello"
+cat("Number of lines containing 'hello':", n_hello_lines2, "\n")
+```
+The word "Hello" appears in 91 times in Beyonce songs.
+
+```{r}
+# Counting the number of times "Goodbye" appears in Beyonce Songs
+
+# Filter for lines containing "goodbye"
+goodbye_lines2 <- b_lyrics%>%
+  filter(grepl("goodbye", line, ignore.case = TRUE))  # Case-insensitive match
+
+# Show all rows containing "goodbye" and count
+print(goodbye_lines2)  # Display the rows
+num_goodbye_lines2 <- nrow(goodbye_lines2)  # Count of lines with "goodbye"
+cat("Number of lines containing 'goodbye':", num_goodbye_lines2, "\n")
+```
+There are 12 lines in Beyonce songs that contain the word "Goodbye".
 ## Part 2C
 
 Using the `b_lyrics` dataset,
@@ -319,7 +375,93 @@ Using the `b_lyrics` dataset,
 9.  Create a word cloud of the top 25 most frequent words.
 
 ```{r}
-# Add your solution here
+# Load necessary libraries
+library(tidytext)
+library(dplyr)
+library(tidyr)
+
+# Step 1: Token nice each lyrical line by words
+b_words <- b_lyrics %>%
+  unnest_tokens(word, line, token = "words")
+
+print(b_words)
+
+```
+```{r}
+# Step 2: Remove the "stopwords"
+
+# Assess the built-in stopwords in the data set using tidytext
+data("stop_words")
+
+# Use the anti-join function to remove stopwords from the tokenized data set
+b_words_filtered <- b_words %>%
+  anti_join(stop_words, by = "word")
+
+#View the tokenized data set without the stopwords
+print(b_words_filtered)
+
+# Removing the stopwords reduced the data set by 109,269 lines
+```
+```{r}
+# Step 3: Calculate the total number for each word in the lyrics
+
+b_words_filtered <- b_words_filtered %>%
+  count(word, sort = TRUE) # Count the occurrences of each word and sort them in descending order
+
+# Display word count
+print(b_word_counts)
+```
+```{r}
+# Step 4: Using the "bing" sentiment lexicon add a column to the summarized dataframe 
+
+# Load the "bing" sentiment lexicon from tidytext
+bing_sentiments <- get_sentiments("bing")
+
+# Join the bing sentiment lexicon to the tokenized dataset
+b_sentiment <- b_words_filtered %>%
+  inner_join(bing_sentiments, by = "word")
+
+# View the data frame to check that sentiment annotation is functioning correctly
+print(b_sentiment)
+
+```
+```{r}
+# Step 5: Sort the rows from most frequent to least frequent words
+# words are already sorted in descending order after step 3
+
+# Step 6: Only keep the top 25 most frequently used words
+# Step 6: Only keep the top 25 most frequently used words
+b_sentiment <- b_sentiment %>%
+  slice_head(n=25)
+
+# Step 7: Autoprint the truncated b_sentiment dataframe 
+b_sentiment
+```
+```{r}
+# Step 8: Create a bar plot of the top words color coded by sentiment
+ggplot(b_sentiment, aes(x = reorder(word, n), y = n, fill = sentiment)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +  # Flip coordinates for better readability
+  labs(x = "Frequency", y = "Top Words", title = "Most Used words in Beyonce's Songs Colored by Sentiment") +
+  theme_minimal() +
+  scale_fill_manual(values = c("positive" = "lightblue", "negative" = "lightcoral")) +  # Customize colors for sentiments
+  theme(legend.title = element_blank())  # Remove legend title
+```
+```{r}
+# Step 9: Create a Word Cloud of the most frequently used words in Beyonce lyrics
+
+# Install & load necessary package
+install.packages("wordcloud2")
+
+library(wordcloud2)
+
+wordcloud2(b_sentiment, 
+        size = 1,          # Size of the words in the cloud
+        minSize = 0.5,    # Minimum size of the smallest words
+        color = 'random-light',  # Color scheme for the words
+        backgroundColor = 'white',  # Background color of the word cloud
+        shape = 'circle')  # Shape of the word cloud )
+
 ```
 
 ## Part 2D
