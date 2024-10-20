@@ -408,8 +408,6 @@ print(b_words_filtered)
 b_words_filtered <- b_words_filtered %>%
   count(word, sort = TRUE) # Count the occurrences of each word and sort them in descending order
 
-# Display word count
-print(b_word_counts)
 ```
 ```{r}
 # Step 4: Using the "bing" sentiment lexicon add a column to the summarized dataframe 
@@ -469,8 +467,84 @@ wordcloud2(b_sentiment,
 Repeat the same analysis as above in Part 2C, but for `ts_lyrics`.
 
 ```{r}
-# Add your solution here
+# Load necessary libraries
+library(tidytext)
+library(dplyr)
+library(tidyr)
+
+# Step 1: Token nice each lyrical line by words
+ts_words <- ts_lines %>%
+  unnest_tokens(word, line, token = "words")
+
+print(ts_words)
 ```
+```{r}
+# Step 2: Remove the "stopwords"
+
+# Assess the built-in stopwords in the data set using tidytext
+data("stop_words")
+
+# Use the anti-join function to remove stopwords from the tokenized data set
+ts_words_filtered <- ts_words %>%
+  anti_join(stop_words, by = "word")
+
+#View the tokenized data set without the stopwords
+print(ts_words_filtered)
+
+# Removing the stopwords reduced the data set by 35,458 lines
+```
+```{r}
+# Step 3: Calculate the total number for each word in the lyrics
+
+ts_words_filtered <- ts_words_filtered %>%
+  count(word, sort = TRUE) # Count the occurrences of each word and sort them in descending order
+
+# Step 4: Using the "bing" sentiment lexicon add a column to the summarized dataframe 
+
+# Load the "bing" sentiment lexicon from tidytext
+bing_sentiments <- get_sentiments("bing")
+
+# Join the bing sentiment lexicon to the tokenized dataset
+ts_sentiment <- ts_words_filtered %>%
+  inner_join(bing_sentiments, by = "word")
+
+# View the data frame to check that sentiment annotation is functioning correctly
+print(ts_sentiment)
+```
+```{r}
+# Step 5: Sort the rows from most frequent to least frequent words
+# words are already sorted in descending order after step 3
+
+# Step 6: Only keep the top 25 most frequently used words
+# Step 6: Only keep the top 25 most frequently used words
+ts_sentiment <- ts_sentiment %>%
+  slice_head(n=25)
+
+# Step 7: Autoprint the truncated b_sentiment dataframe 
+ts_sentiment
+```
+```{r}
+# Step 8: Create a bar plot of the top words color coded by sentiment
+ggplot(ts_sentiment, aes(x = reorder(word, n), y = n, fill = sentiment)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +  # Flip coordinates for better readability
+  labs(x = "Frequency", y = "Top Words", title = "Most Used words in Taylor Swift's Songs Colored by Sentiment") +
+  theme_minimal() +
+  scale_fill_manual(values = c("positive" = "lightblue", "negative" = "lightcoral")) +  # Customize colors for sentiments
+  theme(legend.title = element_blank())  # Remove legend title
+```
+```{r}
+# Step 9: Create a Word Cloud of the most frequently used words in Beyonce lyrics
+library(wordcloud2)
+
+wordcloud2(ts_sentiment, 
+        size = 1,          # Size of the words in the cloud
+        minSize = 0.5,    # Minimum size of the smallest words
+        color = 'random-light',  # Color scheme for the words
+        backgroundColor = 'white',  # Background color of the word cloud
+        shape = 'circle')  # Shape of the word cloud )
+```
+
 
 ## Part 2E
 
@@ -488,9 +562,107 @@ Using the `ts_lyrics` dataset,
 10. Write 2-3 sentences interpreting the plot answering the question "How has the sentiment of Taylor Swift's albums have changed over time?". Add a title, subtitle, and useful axis labels.
 
 ```{r}
-# Add your solution here
+# Load necessary libraries
+library(dplyr)
+library(tidytext)
+
+# Step 1: Tokenize each lyrical line into words, preserving the 'Album' column
+ts_words_by_album <- ts_lyrics %>%
+  unnest_tokens(word, Lyrics, token = "words")  # Tokenizing Lyrics by words
+
+# Step 2: Remove stopwords
+data("stop_words")
+ts_words_by_album <- ts_words_by_album %>%
+  anti_join(stop_words, by = "word")  # Remove stopwords
+
+print(ts_words_by_album)
+```
+```{r}
+# Step 3: Calculate the total number of occurrences for each word in each Album
+
+word_counts_by_album <- ts_words_by_album %>%
+  count(Album, word, name = "total_occurrences", sort = TRUE)
+
+# Merge the word counts back to the original dataset to retain all information
+ts_filtered_dataset <- ts_lyrics %>%
+  left_join(word_counts_by_album, by = "Album")
+
+# View datsets to ensure merger went well
+print(head(ts_lyrics))         # Original dataset
+print(head(word_counts_by_album))  # Word counts by album
+print(head(ts_filtered_dataset))      # Merged dataset with word counts
+```
+```{r}
+# Step 4: USe the "afinn" sentiment lexicon, and add a column to the summarized dataframe 
+
+install.packages("textdata")
+library(textdata)
+
+# Load the Afinn lexicon
+afinn <- get_sentiments("afinn")
+
+# Join the Afinn lexicon with the ts_filtered_dataset
+ts_filtered_with_sentiment <- ts_filtered_dataset %>%
+  left_join(afinn, by = "word") #Join by word to add sentiment scores
+
+# View just the first few rows to ensure join was successful
+print(head(ts_filtered_with_sentiment))
+```
+```{r}
+# Step 5: Calculate the average sentiment score for each album
+
+ts_average_sentiment_by_album <- ts_filtered_with_sentiment %>%
+  group_by(Album) %>%
+  summarize(average_Sentiment = mean(value, na.rm = TRUE)) # Calculate the mean, while ignoring NA values
+
+# Look at the sentiment scores
+print(ts_average_sentiment_by_album)
+
+```
+```{r}
+# Step 7: Join the US sales data set with the average sentiment data set
+combined_sales_sentiment <- US_sales %>%
+  left_join(ts_average_sentiment_by_album, by = c("title" = "Album")) # Join by Album, the c= specifies by which column since the columns are named differently in each column.
+
+# Check join on combined data set
+print(combined_sales_sentiment)
+
+# Filter out data to only keep the taylor swift data
+taylor_only_combined <- combined_sales_sentiment %>%
+  filter(artist == "Taylor Swift") 
+
+# Check if filtering was successful
+print(taylor_only_combined)
+
+
 ```
 
+```{r}
+# Step 8: Create a scatter plot of the average sentiment score for each album
+
+ggplot(taylor_only_combined, aes(x = released_date, y = average_Sentiment, size = sales_in_millions, label = title)) +
+  geom_point(alpha = 0.7, color = "blue") +  # Set point transparency and color
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +  # Add horizontal line at y=0
+  geom_text(vjust = -0.5, size = 3, check_overlap = TRUE) +  # Add album names above points
+  scale_size_continuous(name = "Album Sales (in millions)", range = c(3, 10)) +  # Customize size legend
+  scale_y_continuous(limits = c(-1, 1)) +  # Adjust y-axis limits to prevent cutoff
+  scale_x_date(expand = expansion(mult = c(0.1, 0.1))) +  # Add padding to x-axis
+  labs(
+    title = "Unpacking Sentiment in Taylor Swift's Discography",
+    subtitle = "Relationship Between Album Release Dates and Sentiment Scores",
+    x = "Release Date",
+    y = "Average Sentiment Score"
+  ) +
+  theme_minimal() +  # Use a minimal theme for a clean look
+  theme(
+    plot.title = element_text(hjust = 0.5),  # Center the title
+    plot.subtitle = element_text(hjust = 0.5)  # Center the subtitle
+    
+  )
+
+```
+
+The AFINN sentiment lexicon is a list of English words that are rated for emotion value from -5 to +5, sentiment scores can help understand the emotional tone and text of data. It needs to be noted that when applying the AFINN sentiment lexicon to Taylor Swift's discography there are many words that were unable to be coded as a result I was unable to calculate an average sentiment score for reputation. This graph makes it appear that overall the sentiments in Taylor Swifts albums over time began as being neutral in tone. Her first album "Taylor Swift" has the highest average AFINN sentiment score out of all of the albums, however, this score is still only 0.13, while 1989 has the lowest AFINN score with a score of -0.82 the range between those two album scores is fairly right. The scatter plot makes it appear as though over time Taylor Swift's album's have begun to include more negatively toned words, which may be true. However, when you look at the range of scores it's fairly narrow. There doesn't really seem to be an association between sentiment and album sales in the U.S. context. In terms of total sales, maybe because those albums have been around longer the older albums seem to have sold more.But when you factor in that Taylor Swift and Fearless have been re-relased in this dataset that might be a contributing factor. 
 # R session information
 
 ```{r}
